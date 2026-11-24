@@ -25,9 +25,7 @@ def news(name, n=4):
     return out
 
 
-
 _ok = [0]
-
 _last = [0.0]
 
 
@@ -35,7 +33,7 @@ def search(query, n=6):
     """Web search without an API key: DuckDuckGo HTML, falling back to Bing HTML."""
     wait = 0.6 - (time.time() - _last[0])
     if wait > 0:
-        time.sleep(wait)  # short pause between searches so search engines do not block us
+        time.sleep(wait)  # be polite: avoids getting blocked by search engines
     _last[0] = time.time()
     out = []
     r = get("https://html.duckduckgo.com/html/", params={"q": query})
@@ -78,4 +76,3 @@ def more_sources(name, hint, have):
                 seen.add(domain(u))
                 out.append((t[:90], u, first_sentences(sn, 2)))
     return out[:6]
-

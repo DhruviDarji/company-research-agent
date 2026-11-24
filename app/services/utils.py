@@ -7,7 +7,9 @@ import urllib.parse as up
 
 import requests
 
-UA = {"User-Agent": os.environ.get("USER_AGENT", "CompanyResearchAgent/1.0 (personal research tool)")}
+UA = {"User-Agent": os.environ.get(
+    "USER_AGENT",
+    "CompanyResearchAgent/1.0 (https://github.com/your-username/company-research-agent; your-email@example.com)")}
 WIKI_HOSTS = ("wikipedia.org", "wikidata.org", "wikimedia.org")
 FAILS = []  # (host, reason) for failed Wikipedia/Wikidata calls during the current brief
 log = logging.getLogger(__name__)

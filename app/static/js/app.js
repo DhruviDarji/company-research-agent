@@ -7,12 +7,12 @@ const empty=t=>el('p',{class:'muted'},t);
 const card=(title,cls,...body)=>el('section',{class:'card '+(cls||'')},el('h3',{},title),...body);
 const list=(rows,fn,none)=>rows&&rows.length?el('ul',{},rows.map(r=>el('li',{},fn(r)))):empty(none);
 const initials=n=>n.split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
-const fact=(B,label)=>(B.facts.find(f=>f[0]===label)||[])[1];
+const pick=(A,label)=>(A.profile.find(p=>p[0]===label)||[])[1];
 
 function render(B){
- const out=$('#out');out.replaceChildren();
+ const A=B.analysis,out=$('#out');out.replaceChildren();
  const qs=new URLSearchParams(new FormData($('#f'))).toString();
- const badges=[['Industry',''],['Employees',' employees'],['Headquarters','']].map(([l,suf])=>fact(B,l)&&el('span',{class:'badge'},fact(B,l)+suf));
+ const badges=['Size class','Sector (inferred)','Data confidence'].map(l=>pick(A,l)&&el('span',{class:'badge'},pick(A,l)));
 
  // 1. header with company name and actions
  out.append(el('div',{class:'hero'},
@@ -27,7 +27,8 @@ function render(B){
 
  // 2. What they do: always the first card
  out.append(card('What they do','lead',
-  B.overview?el('p',{class:'lead-text'},B.overview[0],src(B.overview[1])):empty('No description found.')));
+  B.overview?el('p',{class:'lead-text'},B.overview[0],src(B.overview[1])):empty('No description found.'),
+  A.summary?el('p',{class:'quick'},el('strong',{},'Quick read: '),A.summary):null));
 
  // 3. the rest, in the order of the brief
  const g=el('div',{class:'grid'});
@@ -39,6 +40,9 @@ function render(B){
     el('div',{},el('strong',{},p[0]),el('div',{class:'muted small'},p[1],src(p[2])))),'None publicly listed.')),
   card('Contact details','',list(B.contacts,c=>[el('span',{class:'muted'},c[0]+': '),c[1],src(c[2])],'No public contacts found.')),
   card('Three talking points for a first meeting','wide',el('ol',{class:'points'},B.talking.map(t=>el('li',{},t[0],src(t[1]))))),
+  card('Analysis','wide',
+   el('div',{class:'chips'},A.profile.map(p=>el('span',{class:'chip'},p[0]+': '+p[1]))),
+   list(A.signals,s=>[el('span',{class:'tag '+s[0]},s[0]),s[1],src(s[2])],'No signals detected.')),
   card('More sources','wide',list(B.more,m=>[el('a',{href:m[1]},m[0]),m[2]?el('div',{class:'muted small'},m[2]):null],'No extra sources found.'))
  );
  out.append(g);

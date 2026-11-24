@@ -14,7 +14,47 @@
       <div><h1>Company Research Agent</h1>
       <p class="sub">Type any company. Get a sourced brief with decision-makers, news and talking points. For startup provide its official website.</p></div>
     </div>
+    <form id="f"><!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Company Research Agent</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔎</text></svg>">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><span class="logo" aria-hidden="true">🔎</span>
+      <div><h1>Company Research Agent</h1>
+      <p class="sub">Type any company. Get a sourced brief with decision-makers, news and talking points.For startup provide its official website.</p></div>
+    </div>
     <form id="f">
+      <div class="search">
+        <input id="q" name="q" placeholder="Company name, e.g. Microsoft " required autocomplete="off" aria-label="Company name">
+        <button class="primary" id="go">Research</button>
+      </div>
+      <details>
+        <summary>More options (website, LinkedIn, location)</summary>
+        <div class="row"><input name="website" placeholder="Official website (optional)" inputmode="url">
+        <input name="linkedin" placeholder="LinkedIn company URL (optional)" inputmode="url"></div>
+        <div class="row"><input name="hint" placeholder="City / country / sector (optional)">
+        <select name="prefer"><option value="india">Prefer Indian companies</option><option value="global">Prefer global / largest</option><option value="any">No preference</option></select></div>
+        <div class="row"><textarea name="about" rows="3" placeholder="Paste the LinkedIn About text (optional)"></textarea></div>
+      </details>
+      <div class="recent" id="recent"></div>
+    </form>
+  </div>
+</header>
+<main class="wrap">
+  <div id="status" role="status" aria-live="polite"></div>
+  <div id="out"></div>
+</main>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
+
       <div class="search">
         <input id="q" name="q" placeholder="Company name, e.g. Microsoft " required autocomplete="off" aria-label="Company name">
         <button class="primary" id="go">Research</button>

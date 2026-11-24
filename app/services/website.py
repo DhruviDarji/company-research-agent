@@ -1,8 +1,8 @@
-"""Company website scraping, LinkedIn search snippet, OpenStreetMap, schema.org data."""
+"""Company website scraping, LinkedIn search snippets, OpenStreetMap, schema.org data."""
 import json
 import re
-import urllib.parse as up
 from concurrent.futures import ThreadPoolExecutor
+import urllib.parse as up
 
 from bs4 import BeautifulSoup
 
@@ -14,28 +14,54 @@ SKIP_DOMAINS = ("wikipedia.org", "linkedin.com", "facebook.com", "twitter.com", 
                 "glassdoor.com", "indeed.com", "reddit.com", "zoominfo.com")
 
 
-
-def guess_site(name, hint=""):
-    cands = [u for _, u, _ in search(f"{name} {hint} official website") if u.startswith("http")
-             and not any(d in domain(u) for d in SKIP_DOMAINS)]
-    key = "".join(sorted(tokens(name), key=len))[:6]
-    for u in cands:  # prefer a domain that contains part of the company name
-        if any(t in domain(u).replace("-", "") for t in tokens(name)) or key in domain(u):
-            return f"{up.urlparse(u).scheme}://{up.urlparse(u).netloc}"
+def guess_site(name, hint="", prefer="india"):
+    res = search(f"{name} {hint} official website")
+    if prefer == "india" and "india" not in hint.lower():
+        res = search(f"{name} India official website") + res
+    cands = [u for _, u, _ in res if u.startswith("http")
+             and not any(d in domain(u) for d in SKIP_DOMAINS)
+             and any(t in domain(u).replace("-", "") for t in tokens(name))]
+    if prefer == "india":
+        cands.sort(key=lambda u: not domain(u).endswith(".in"))  # stable: .in first
+    if cands:
+        p = up.urlparse(cands[0])
+        return f"{p.scheme}://{p.netloc}"
     return None  # refuse to guess: a wrong website is worse than none
 
 
-def linkedin_info(name, hint=""):
-    """Public LinkedIn search-result snippet only (we never scrape LinkedIn itself)."""
-    for _, url, sn in search(f"{name} {hint} site:linkedin.com/company"):
-        slug = url.split("linkedin.com/company/")[-1].split("/")[0].replace("-", " ")
-        if "linkedin.com/company" in url and tokens(name) & tokens(slug):
+def norm_url(u):
+    if not u:
+        return None
+    u = u.strip()
+    return u if u.startswith("http") else "https://" + u
+
+
+def linkedin_info(name, hint="", url=None):
+    """Public LinkedIn search-result snippet only (we never scrape LinkedIn itself).
+    If the user gave the company's LinkedIn URL, that exact page is used."""
+    slug = url.rstrip("/").split("/company/")[-1].split("/")[0] if url and "/company/" in url else None
+    q = f"{slug.replace('-', ' ')} site:linkedin.com/company" if slug else f"{name} {hint} site:linkedin.com/company"
+    for _, u, sn in search(q):
+        s_ = u.split("linkedin.com/company/")[-1].split("/")[0]
+        ok = (s_.lower() == slug.lower()) if slug else bool(tokens(name) & tokens(s_.replace("-", " ")))
+        if "linkedin.com/company" in u and ok:
             g = lambda pat: (re.search(pat, sn) or [None, None])[1]
-            return {"url": url, "snippet": sn,
+            return {"url": url or u, "snippet": sn,
                     "size": g(r"(\d[\d,]*(?:\s*[-–]\s*\d[\d,]*)?\+?)\s+employees"),
                     "hq": g(r"Headquarters:?\s*([^·|]+?)(?:\s{2,}|·|\||Industry|$)"),
                     "industry": g(r"Industry:?\s*([^·|]+?)(?:\s{2,}|·|\||$)")}
-    return {}
+    return {"url": url, "snippet": ""} if url else {}
+
+
+def parse_about(text):
+    """Facts from text the user pasted from the LinkedIn About section."""
+    end = r"(?=\s*(?:\.\s+(?=[A-Za-z ]{3,20}:)|·|\||\n|$))"
+    g = lambda pat: ((re.search(pat, text, re.I) or [None, None])[1] or "").strip(" .") or None
+    sents = re.split(r"(?<=[.!?])\s+", text.strip())
+    desc = " ".join(x for x in sents[:2] if ":" not in x)
+    return {"size": g(r"(\d[\d,]*(?:\s*[-–]\s*\d[\d,]*)?\+?)\s+employees") or g(r"company size:?\s*([\d,\-–+]+)"),
+            "hq": g(r"headquarters:?\s*(.+?)" + end), "industry": g(r"industry:?\s*(.+?)" + end),
+            "founded": g(r"founded:?\s*(\d{4})"), "desc": desc}
 
 
 def osm_info(name, hint=""):
@@ -55,9 +81,11 @@ def osm_info(name, hint=""):
             "url": f"https://www.openstreetmap.org/{d['osm_type']}/{d['osm_id']}"}
 
 
-
-PATHS = ["", "/contact", "/contact-us", "/about", "/about-us", "/team", "/leadership",
-         "/our-team", "/company", "/about/leadership", "/company/leadership"]
+# ---------- Company website scrape ----------
+PATHS = ["", "/contact", "/contact-us", "/about", "/about-us", "/team", "/leadership", "/our-team",
+         "/company", "/about/leadership", "/company/leadership", "/management", "/management-team",
+         "/leadership-team", "/board", "/board-of-directors", "/founders", "/people", "/who-we-are",
+         "/about-us/team", "/about/team", "/our-story", "/company/about-us"]
 TITLE = re.compile(r"\b(CEO|CTO|CFO|COO|CMO|CRO|Chief [A-Z][a-z]+ Officer|Chief Executive|"
                    r"Co-?Founder|Founder|Owner|Proprietor|Partner|Principal|President|Chairman|"
                    r"Chair|Managing Director|Director|Vice President|VP|Head of [A-Z]\w+)\b")
@@ -103,6 +131,9 @@ def jsonld_profile(soup):
             if not isinstance(d, dict):
                 continue
             t = d.get("@type")
+            if str(t) == "Person" and isinstance(d.get("name"), str) and isinstance(d.get("jobTitle"), str):
+                P.setdefault("persons", []).append((d["name"], d["jobTitle"]))
+                continue
             if not ORG.search(" ".join(t) if isinstance(t, list) else str(t or "")):
                 continue
             for k, f in (("description", "description"), ("phone", "telephone"),
@@ -131,7 +162,7 @@ def jsonld_profile(soup):
 
 def scrape_site(site):
     base = site.rstrip("/")
-    with ThreadPoolExecutor(6) as ex:
+    with ThreadPoolExecutor(8) as ex:
         resps = list(ex.map(get, [base + p for p in PATHS]))
     emails, phones, socials, people, prof = [], [], [], [], {}
     for p, r in zip(PATHS, resps):
@@ -142,6 +173,14 @@ def scrape_site(site):
         for k, v in jsonld_profile(soup).items():
             prof.setdefault(k, (v, url))
         if p == "":
+            hs = [h.get_text(" ", strip=True) for h in soup.find_all(["h1", "h2"])]
+            prof["headings"] = ([h for h in hs if 3 < len(h) < 100][:8], url)
+            links = " ".join((a.get_text(" ", strip=True) + " " + a["href"]).lower()
+                             for a in soup.find_all("a", href=True))
+            sig = [k for k in ("careers", "jobs", "pricing", "blog", "press", "investors", "partners",
+                               "customers", "case-stud", "docs", "shop", "cart") if k in links]
+            prof["signals"] = (sig, url)
+            prof["text"] = (soup.get_text(" ", strip=True)[:3000], url)
             m = (soup.find("meta", attrs={"name": "description"})
                  or soup.find("meta", attrs={"property": "og:description"}))
             if m and m.get("content"):
@@ -157,7 +196,7 @@ def scrape_site(site):
         for e in EMAIL.findall(r.text):
             if not any(j in e.lower() for j in JUNK):
                 emails.append((e, url))
-        if any(k in p for k in ("team", "leader", "about", "company")):
+        if any(k in p for k in ("team", "leader", "about", "company", "manage", "board", "founder", "people", "who-we", "story")):
             people += parse_people(soup, url)
     for k, kind in (("email", emails), ("phone", phones)):
         if k in prof:
