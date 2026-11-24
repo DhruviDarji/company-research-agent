@@ -17,6 +17,8 @@ def main():
     ap.add_argument("--website", help="official website, if you know it (skips guessing)")
     ap.add_argument("--linkedin", help="company LinkedIn URL, e.g. linkedin.com/company/boat-lifestyle")
     ap.add_argument("--about", default="", help="text pasted from the LinkedIn About section")
+    ap.add_argument("--startup", action="store_true",
+                    help="small/early-stage startup: search startup directories and guess the website")
     ap.add_argument("--pdf", action="store_true", help="export PDF")
     ap.add_argument("--xlsx", action="store_true", help="append to company_briefs.xlsx")
     ap.add_argument("--out", default=".")
@@ -24,7 +26,7 @@ def main():
     name = a.company or input("Company name: ").strip()
     if not name:
         sys.exit("No company given.")
-    B = build(name, a.hint, a.prefer, a.website, a.linkedin, a.about)
+    B = build(name, a.hint, a.prefer, a.website, a.linkedin, a.about, a.startup)
     print(to_text(B))
     os.makedirs(a.out, exist_ok=True)
     slug = re.sub(r"\W+", "_", name.lower()).strip("_")

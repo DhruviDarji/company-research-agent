@@ -11,10 +11,11 @@ _lock = threading.Lock()  # search engines are rate-limited globally, so build o
 
 
 def get_brief(qs):
-    """Build (or reuse for 15 min) the brief for a query dict with keys q, hint, prefer, website, linkedin, about."""
+    """Build (or reuse for 15 min) the brief for a query dict with keys q, hint, prefer, website, linkedin, about, startup."""
     kw = dict(hint=qs.get("hint", ""), prefer=qs.get("prefer", "india"),
               website=qs.get("website") or None, linkedin=qs.get("linkedin") or None,
-              about=qs.get("about", ""))
+              about=qs.get("about", ""),
+              startup=str(qs.get("startup", "")).lower() in ("1", "true", "on", "yes"))
     key = (qs.get("q", "").lower(), tuple(sorted(kw.items(), key=lambda x: x[0])))
     with _lock:
         hit = _cache.get(key)

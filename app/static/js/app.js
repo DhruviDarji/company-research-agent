@@ -55,7 +55,7 @@ function recents(){let r=[];try{r=JSON.parse(localStorage.getItem('recent')||'[]
  document.querySelectorAll('#recent .chip').forEach(b=>b.onclick=()=>{$('#q').value=b.textContent;$('#f').requestSubmit()})}
 function remember(n){try{let r=JSON.parse(localStorage.getItem('recent')||'[]').filter(x=>x!==n);r.unshift(n);localStorage.setItem('recent',JSON.stringify(r.slice(0,6)))}catch(e){}recents()}
 
-const STEPS=['Checking Wikipedia and Wikidata…','Reading the company website…','Searching for decision-makers…','Collecting recent news…','Putting the brief together…'];
+const STEPS=['Checking Wikipedia and Wikidata…','Reading the company website…','Checking startup directories…','Searching for decision-makers…','Collecting recent news…','Putting the brief together…'];
 $('#f').addEventListener('submit',async ev=>{ev.preventDefault();
  const qs=new URLSearchParams(new FormData(ev.target)).toString(),st=$('#status'),go=$('#go');
  go.disabled=true;$('#out').replaceChildren();st.className='';

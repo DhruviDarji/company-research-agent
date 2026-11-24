@@ -54,6 +54,9 @@ def analyze(B):
     if yr:
         age = dt.date.today().year - yr
         out["profile"].append(("Age", f"{age} years (founded {yr})" + (" - early stage" if age <= 3 else " - established" if age >= 10 else ""), facts["Founded"][2]))
+    if "Funding stage" in facts:
+        out["profile"].append(("Funding stage", facts["Funding stage"][1].replace(" (from search results, verify)", ""),
+                               facts["Funding stage"][2]))
     # news themes
     themes = {}
     for t, u, d, s_ in B["news"]:

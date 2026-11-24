@@ -8,13 +8,14 @@ from . import search as search_mod
 from .analysis import analyze, talking_points
 from .people import LEAD, find_people, ok_name, rank_role
 from .search import more_sources, news, search
+from .startup import find_site, startup_profile
 from . import utils
-from .utils import domain, first_sentences
+from .utils import domain, first_sentences, tokens
 from .website import (guess_site, linkedin_info, norm_url, osm_info, parse_about, scrape_site)
 from .wiki import wiki_find, wikidata
 
 
-def build(name, hint="", prefer="india", website=None, linkedin=None, about=""):
+def build(name, hint="", prefer="india", website=None, linkedin=None, about="", startup=False):
     B = {"query": name, "matched": None, "overview": None, "facts": [], "news": [],
          "people": [], "contacts": [], "talking": [], "notes": [], "why": "",
          "generated": dt.date.today().isoformat()}
@@ -60,9 +61,15 @@ def build(name, hint="", prefer="india", website=None, linkedin=None, about=""):
             site = wd.get("website")
     wiki_people = len(B["people"])  # leaders found on Wikipedia/Wikidata
     site = norm_url(website) or site or safe(lambda: guess_site(name, hint, prefer), None, "Website search")
+    # Startup mode: on when ticked, or automatically when Wikipedia has no page for this company.
+    use_startup = bool(startup) or wp is None
+    guessed = False
+    if not site and use_startup:
+        site = safe(lambda: find_site(name, hint, prefer), None, "Startup website guess")
+        guessed = bool(site)
     prof = {}
     if site:
-        fact("Website", site + (" (provided by you)" if website else ""), site)
+        fact("Website", site + (" (provided by you)" if website else " (guessed from the name, verify)" if guessed else ""), site)
         emails, phones, socials, people, prof = safe(lambda: scrape_site(site), ([], [], [], [], {}), "Company website")
         B["contacts"] += [("Email", e, u) for e, u in emails] + [("Phone", p, u) for p, u in phones]
         B["contacts"] += [("Social", s_, u) for s_, u in socials]
@@ -103,19 +110,33 @@ def build(name, hint="", prefer="india", website=None, linkedin=None, about=""):
             if o.get("phone"):
                 B["contacts"].append(("Phone", o["phone"], o["url"]))
     if not B["overview"]:
+        # Only accept a snippet that actually names the company and comes from a normal site:
+        # for small companies the first search hit is often an unrelated forum answer.
+        NOISE = ("facebook.com", "instagram.com", "zhihu.com", "quora.com", "reddit.com", "baidu.com",
+                 "tieba", "stackexchange.com", "stackoverflow.com", "youtube.com", "pinterest.com")
         for t, u, sn in search(f"{name} {hint} about company"):
-            if sn and not any(d in domain(u) for d in ("facebook.com", "instagram.com")):
+            if sn and not any(d in domain(u) for d in NOISE) and tokens(name) <= tokens(t + " " + sn):
                 B["overview"] = (first_sentences(sn, 2) + " (search snippet)", u)
                 break
     q = f"{name} {hint}".strip()
     B["news"] = safe(lambda: news(q if hint else name), [], "News")
     have = [x for x in [f[2] for f in B["facts"]] + [n_[1] for n_ in B["news"]] + [c_[2] for c_ in B["contacts"]] if x]
     B["more"] = safe(lambda: more_sources(name, hint, have), [], "Extra sources")
+    S = {}
+    if use_startup:
+        S = safe(lambda: startup_profile(name, hint, prefer, site), {}, "Startup sources")
+        have_u = {m[1] for m in B["more"]}
+        B["more"] = (B["more"] + [m for m in S.get("more", []) if m[1] not in have_u])[:10]
+        for label, value, u in S.get("facts", []):
+            fact(label, value, u)  # fills gaps only: website/LinkedIn facts were added first
+        B["notes"].append(("Startup mode: little public data is normal for small companies, so startup "
+                           "directories, startup media and company registries were searched as well. "
+                           "Funding, stage and investors come from search-result text: verify them on the links.", None))
     for n_, role_ in prof.get("persons", ([],))[0]:
         if re.search(LEAD, role_) and ok_name(n_):
             person(n_, role_, site)
     before = len(B["people"])
-    extra = [(t_, "", u_) for t_, u_, _, _ in B["news"]] + [(t_, sn_, u_) for t_, u_, sn_ in B["more"]]
+    extra = [(t_, "", u_) for t_, u_, _, _ in B["news"]] + [(t_, sn_, u_) for t_, u_, sn_ in B["more"]] + S.get("extra", [])
     # Wikipedia/Wikidata lists few leaders for most companies, so search the web separately
     # when it gave fewer than 3 (with extra queries when it gave none).
     web_search = wiki_people < 3

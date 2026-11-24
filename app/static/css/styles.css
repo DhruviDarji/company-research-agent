@@ -113,3 +113,6 @@ dd{margin:0}
   .grid{display:block}.grid .card{margin-bottom:10px}
   a{color:#000}
 }
+
+.check{display:flex;gap:.5rem;align-items:center;font-size:.9rem;color:var(--muted,#555)}
+.check input{width:auto}
